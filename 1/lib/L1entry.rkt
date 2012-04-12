@@ -9,4 +9,4 @@
       ([filename (command-line #:args (filename) filename)])
     (compile (parse filename))))
 
-;(main)
+(main)
