@@ -1,0 +1,6 @@
+(((esi <- 500)
+  :alloc
+  (eax <- (allocate 1310721 0))
+  (esi -= 1)
+  (cjump esi = 0 :done :alloc)
+  :done))

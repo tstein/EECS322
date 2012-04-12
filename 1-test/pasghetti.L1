@@ -1,0 +1,18 @@
+(((ecx <- 0)
+  (edx <- 0)
+  :one
+  (ecx += 2)
+  (goto :two)
+  :four
+  (ecx += 1)
+  (cjump ecx < 10 :one :three)
+  :three
+  (ecx += 5)
+  (cjump ecx < 25 :four :end)
+  :two
+  (ecx += 3)
+  (goto :four)
+  :end
+  (ecx <<= 1)
+  (ecx += 1)
+  (eax <- (print ecx))))

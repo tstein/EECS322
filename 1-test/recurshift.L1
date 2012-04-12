@@ -1,0 +1,10 @@
+(((ecx <- 0)
+  (ebx <- 1)
+  :loop
+  (ebx <<= ecx)
+  (ecx <- ebx)
+  (cjump ecx < 256 :loop :done)
+  :done
+  (ecx <<= 1)
+  (ecx += 1)
+  (eax <- (print ecx))))

@@ -1,0 +1,7 @@
+(((eax <- 65535)
+  (ebx <- 1)
+  (ebx <<= 31)
+  (eax &= ebx)
+  (eax <<= 1)
+  (eax += 3)
+  (eax <- (print eax))))

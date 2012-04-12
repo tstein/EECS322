@@ -1,0 +1,9 @@
+(((esi <- 0)
+  :loop
+  (ecx <- esi)
+  (ecx <<= 1)
+  (ecx += 1)
+  (eax <- (print ecx))
+  (esi += 274)
+  (cjump esi < 1000000 :loop :done)
+  :done))

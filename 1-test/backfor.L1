@@ -1,0 +1,6 @@
+(((ecx <- -10)
+  :loop
+  (ecx += 1)
+  (cjump ecx = 1 :done :loop)
+  :done
+  (eax <- (print ecx))))

@@ -1,0 +1,15 @@
+(((edi <- 0)
+  :first
+  :second
+  :third
+  (edi += 1)
+  (esi <- edi)
+  (esi <<= 1)
+  (esi += 1)
+  (eax <- (print esi))
+  (cjump edi = 1 :first :notfirst)
+  :notfirst
+  (cjump edi = 2 :second :notsecond)
+  :notsecond
+  (cjump edi = 3 :third :notthird)
+  :notthird))

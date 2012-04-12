@@ -1,0 +1,12 @@
+(((eax <- (allocate 17 1))
+  (edx <- 55) ;; store D
+  ((mem eax 4) <- edx)
+  ((mem eax 16) <- edx)
+  (edx <- 69) ;; store E
+  ((mem eax 8) <- edx)
+  ((mem eax 24) <- edx)
+  ((mem eax 28) <- edx)
+  ((mem eax 12) <- 43) ;; Store A
+  ((mem eax 20) <- 47) ;; Store B
+  ((mem eax 32) <- 63) ;; Store F
+  (eax <- (print eax))))

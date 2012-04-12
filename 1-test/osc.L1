@@ -1,0 +1,25 @@
+(((ecx <- 0)
+  (eax <- 0)
+  (ebx <- 1)
+  :loop
+  (cjump eax < 1000 :keeploopin :done)
+  :keeploopin
+  (ecx += ebx)
+  (eax += 10)
+  (edi <- eax)
+  (edi >>= 1)
+  (edi <<= 1)
+  (cjump edi = eax :add :subtract)
+  :add
+  (ebx += eax)
+  (ebx += eax)
+  (goto :loop)
+  :subtract
+  (ebx -= eax)
+  (ebx -= eax)
+  (goto :loop)
+  :done
+  (ecx <<= 1)
+  (ecx += 1)
+  (eax <- (print ecx))))
+
