@@ -3,12 +3,12 @@
          "L1types.rkt")
 
 (define/contract (parse infile)
-  (string? . -> . l1prog)
+  (string? . -> . l1prog?)
   (let ([code (call-with-input-file infile read)])
     (parseL1prog code)))
 
 (define/contract (parseL1prog prog)
-  (any/c . -> . l1prog?)
+  (list? . -> . l1prog?)
   (let ([main (parseMain (first prog))]
         [funs (map (lambda (x) (parseFun x #f)) (rest prog))])
     (l1prog (cons main funs))))
@@ -16,14 +16,14 @@
 ;; parseMain any → l1fun?
 ;; Hand off to parseFun, telling it to give this function the special name "go".
 (define/contract (parseMain body)
-  (any/c . -> . l1fun?)
+  (list? . -> . l1fun?)
   (parseFun body #t))
 
 ;; parseFun any boolean? → l1fun?
 ;; The second arg indicates whether this function is the main one, and therefore
 ;; has no label/should be given the label "go".
 (define/contract (parseFun body ismain)
-  (any/c boolean? . -> . l1fun?)
+  (-> list? boolean? l1fun?)
   (let ([name (if ismain `:go (first body))]
         [instrs (if ismain body (rest body))])
     (l1fun (label name)
