@@ -54,7 +54,8 @@
                                [instrs (listof l1instr?)]))
 (define-struct/contract l1prog ([funs (listof l1fun?)]))
 
-(provide (struct-out label)
+(provide l1instr?
+         (struct-out label)
          (struct-out mem)
          (struct-out return)
          (struct-out call)

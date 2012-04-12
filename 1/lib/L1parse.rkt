@@ -2,33 +2,36 @@
 (require srfi/13
          "L1types.rkt")
 
-(define (symbol= sym test)
-  (string= (symbol->string sym) test))
-
-(define (parse infile)
+(define/contract (parse infile)
+  (string? . -> . l1prog)
   (let ([code (call-with-input-file infile read)])
     (parseL1prog code)))
 
-(define (parseL1prog prog)
+(define/contract (parseL1prog prog)
+  (any/c . -> . l1prog?)
   (let ([main (parseMain (first prog))]
         [funs (map (lambda (x) (parseFun x #f)) (rest prog))])
     (l1prog (cons main funs))))
 
 ;; parseMain any → l1fun?
 ;; Hand off to parseFun, telling it to give this function the special name "go".
-(define (parseMain body) (parseFun body #t))
+(define/contract (parseMain body)
+  (any/c . -> . l1fun?)
+  (parseFun body #t))
 
 ;; parseFun any boolean? → l1fun?
 ;; The second arg indicates whether this function is the main one, and therefore
 ;; has no label/should be given the label "go".
-(define (parseFun body ismain)
+(define/contract (parseFun body ismain)
+  (any/c boolean? . -> . l1fun?)
   (let ([name (if ismain `:go (first body))]
         [instrs (if ismain body (rest body))])
     (l1fun (label name)
            (map parseInstr instrs))))
 
 ;; parseInstr any → one of the instr types
-(define (parseInstr instr)
+(define/contract (parseInstr instr)
+  (any/c . -> . l1instr?)
   (match instr
     [`(,x ,y ,z ,a ,b ,c)
      (cjump y z a b c)]

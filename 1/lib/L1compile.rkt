@@ -4,28 +4,33 @@
          "L1parse.rkt")
 
 (define preamble
-  ".text\n.globl go\n.type go, @function\nn")
+  ".text\n.globl go\n.type go, @function\n")
 
 (define postamble
   ".size go, .-go\n.section .note.GNU-stack,\"\",@progbits\n")
 
-(define (compileLabel lab)
+(define/contract (compileLabel lab)
+  (label? . -> . string?)
   (string-append 
    (substring (symbol->string (label-name lab)) 1) ":\n"))
 
-(define (compileTarget sym)
+(define/contract (compileTarget sym)
+  (symbol? . -> . string?)
   (string-replace (symbol->string (label-name sym) "$" 0 1)))
 
-(define (compileReturn _)
+(define/contract (compileReturn _)
+  (return? . -> . string?)
   "ret\n")
 
-(define (compileCall kall)
+(define/contract (compileCall kall)
+  (call? . -> . string?)
   (string-append "call " (call-func kall) "\n"))
 
 ;; FIXME
 (define compileTailCall compileCall)
 
-(define (compileArg arg)
+(define/contract (compileArg arg)
+  ((or/c integer? symbol? label? mem?) . -> . string?)
   (cond
     [(integer? arg) (string-append "$" (number->string arg))]
     [(symbol? arg) (string-append "%" (symbol->string arg))]
@@ -36,14 +41,16 @@
                  (compileArg (mem-addr arg))
                  ")")]))
 
-(define (compileAssign ass)
+(define/contract (compileAssign ass)
+  (assign? . -> . string?)
   (string-append "movl "
                  (compileArg (assign-src ass))
                  ", "
                  (compileArg (assign-dst ass))
                  "\n"))
 
-(define (compileMathop instr)
+(define/contract (compileMathop instr)
+  (mathop? . -> . string?)
   (let ([op (mathop-op instr)]
         [larg (mathop-larg instr)]
         [rarg (mathop-rarg instr)])
@@ -60,22 +67,34 @@
      (compileArg larg)
      "\n")))
 
-(define (compileCmp cmp) #f)
+(define/contract (compileCmp cmp)
+  (cmp? . -> . string?)
+  "deadbeef")
 
-(define (compileGoto goto)
+(define/contract (compileGoto goto)
+  (goto? . -> . string?)
   (string-append "jmp "
                  (compileTarget (goto-target goto))
                  "\n"))
 
-(define (compileCjump cjmp) #f)
+(define/contract (compileCjump cjmp)
+  (cjump? . -> . string?)
+  "deadbeef")
 
-(define (compilePrint prnt) #f)
+(define/contract (compilePrint prnt)
+  (print? . -> . string?)
+  "deadbeef")
 
-(define (compileAllocate prnt) #f)
+(define/contract (compileAllocate alloc)
+  (allocate? . -> . string?)
+  "deadbeef")
 
-(define (compileArrayError prnt) #f)
+(define/contract (compileArrayError arrerr)
+  (array-error? . -> . string?)
+  "deadbeef")
 
-(define (compileInstr instr)
+(define/contract (compileInstr instr)
+  (l1instr? . -> . string?)
   (string-append
    (let ([compfun
           (cond
@@ -94,11 +113,18 @@
      (compfun instr))
    "\n"))
 
-(define (compileFun fun)
-  (foldl string-append "" (cons (compileLabel (l1fun-name fun))
-                                (map compileInstr (l1fun-instrs fun)))))
+(define/contract (compileFun fun)
+  (l1fun? . -> . string?)
+  (string-append
+   (foldl string-append "" (cons (compileLabel (l1fun-name fun))
+                                 (map compileInstr (l1fun-instrs fun))))
+   (if (eq? (label-name (l1fun-name fun)) `:go)
+       "movl $0, %eax\nret"
+       ""
+       )))
 
-(define (compile prog)
+(define/contract (compile prog)
+  (l1prog? . -> . string?)
   (string-append
    preamble
    (foldl string-append "" (map compileFun (l1prog-funs prog)))
