@@ -7,6 +7,6 @@
 (define (main)
   (let
       ([filename (command-line #:args (filename) filename)])
-    (compile (parse filename))))
+    (display (compile (parse filename)))))
 
 (main)

@@ -12,7 +12,7 @@
 (define/contract (compileLabel lab)
   (label? . -> . string?)
   (string-append 
-   (substring (symbol->string (label-name lab)) 1) ":\n"))
+   (substring (symbol->string (label-name lab)) 1) ":"))
 
 (define/contract (compileTarget sym)
   (symbol? . -> . string?)
@@ -24,7 +24,7 @@
 
 (define/contract (compileCall kall)
   (call? . -> . string?)
-  (string-append "call " (call-func kall) "\n"))
+  (string-append "call " (call-func kall)))
 
 ;; FIXME
 (define compileTailCall compileCall)
@@ -46,8 +46,7 @@
   (string-append "movl "
                  (compileArg (assign-src ass))
                  ", "
-                 (compileArg (assign-dst ass))
-                 "\n"))
+                 (compileArg (assign-dst ass))))
 
 (define/contract (compileMathop instr)
   (mathop? . -> . string?)
@@ -63,9 +62,8 @@
        [`<<= "sal "]
        [`>>= "sar "])
      (compileArg rarg)
-     " "
-     (compileArg larg)
-     "\n")))
+     ", "
+     (compileArg larg))))
 
 (define/contract (compileCmp cmp)
   (cmp? . -> . string?)
@@ -74,8 +72,7 @@
 (define/contract (compileGoto goto)
   (goto? . -> . string?)
   (string-append "jmp "
-                 (compileTarget (goto-target goto))
-                 "\n"))
+                 (compileTarget (goto-target goto))))
 
 (define/contract (compileCjump cjmp)
   (cjump? . -> . string?)
@@ -96,6 +93,7 @@
 (define/contract (compileInstr instr)
   (l1instr? . -> . string?)
   (string-append
+   "\t"
    (let ([compfun
           (cond
             [(label? instr) compileLabel]
@@ -116,10 +114,11 @@
 (define/contract (compileFun fun)
   (l1fun? . -> . string?)
   (string-append
-   (foldl string-append "" (cons (compileLabel (l1fun-name fun))
-                                 (map compileInstr (l1fun-instrs fun))))
+   (foldr string-append "" (cons
+                            (string-append (compileLabel (l1fun-name fun)) "\n")
+                            (map compileInstr (l1fun-instrs fun))))
    (if (eq? (label-name (l1fun-name fun)) `:go)
-       "movl $0, %eax\nret"
+       "\tmovl $0, %eax\n\tret\n"
        ""
        )))
 
@@ -127,5 +126,7 @@
   (l1prog? . -> . string?)
   (string-append
    preamble
-   (foldl string-append "" (map compileFun (l1prog-funs prog)))
+   (foldr string-append "" (map compileFun (l1prog-funs prog)))
    postamble))
+
+(provide compile)
