@@ -17,7 +17,19 @@
 (define/contract (compileTarget targ)
   ((or/c symbol? integer?) . -> . string?)
   (cond
-    [(symbol? targ) (symbol->string targ)]
+    [(symbol? targ) (if (member
+                         targ
+                         (list
+                          `eax
+                          `ebx
+                          `ecx
+                          `edx
+                          `esi
+                          `edi
+                          `ebp
+                          `esp))
+                        (string-append "*%" (symbol->string targ))
+                        (symbol->string targ))]
     [(integer? targ) (string-replace (number->string targ) "$" 0 1)]))
 
 (define/contract (compileReturn _)
@@ -35,7 +47,10 @@
   ((or/c integer? symbol? label? mem?) . -> . string?)
   (cond
     [(integer? arg) (string-append "$" (number->string arg))]
-    [(symbol? arg) (string-append "%" (symbol->string arg))]
+    [(symbol? arg) (let ([arg (symbol->string arg)])
+                     (if (string-prefix? ":" arg)
+                         (string-replace arg "$" 0 1)
+                         (string-append "%" arg)))]
     [(label? arg) (compileTarget (label-name arg))]
     [(mem? arg) (string-append
                  (number->string (mem-offset arg))
@@ -59,7 +74,7 @@
      (match op
        [`+= "addl "]
        [`-= "subl "]
-       ;; [`*=
+       [`*= "imul "]
        [`&= "andl "]
        [`<<= "sal "]
        [`>>= "sar "])
@@ -74,7 +89,7 @@
 (define/contract (compileGoto goto)
   (goto? . -> . string?)
   (string-append "jmp "
-                 (compileTarget (goto-target goto))))
+                 (substring (symbol->string (goto-target goto)) 1)))
 
 (define/contract (compileCjump cjmp)
   (cjump? . -> . string?)
@@ -90,8 +105,8 @@
        (mathop `+= `esp 4))
       (list
        (mathop `-= `esp 8)
-       (assign (mem `esp -4) (car args))
-       (assign (mem `esp 0) (cadr args))
+       (assign (mem `esp 0) (car args))
+       (assign (mem `esp 4) (cadr args))
        (call func)
        (mathop `+= `esp 8))))
 

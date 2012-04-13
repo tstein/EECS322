@@ -41,6 +41,7 @@
                        mathop?
                        cmp?
                        label?
+                       goto?
                        cjump?
                        call?
                        tail-call?
