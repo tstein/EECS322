@@ -29,13 +29,13 @@
 (define-struct/contract cjump ([larg t?]
                                [op symbol?]
                                [rarg t?]
-                               [ttarget label?]
-                               [ftarget label?]))
+                               [ttarget symbol?]
+                               [ftarget symbol?]))
 (define-struct/contract print ([val t?]))
 (define-struct/contract allocate ([size t?]
                                   [init t?]))
-(define-struct/contract array-error ([arg0 t?]
-                                     [arg1 t?]))
+(define-struct/contract array-error ([ptr t?]
+                                     [index t?]))
 
 (define l1instr? (or/c assign?
                        mathop?

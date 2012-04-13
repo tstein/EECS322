@@ -14,9 +14,11 @@
   (string-append 
    (substring (symbol->string (label-name lab)) 1) ":"))
 
-(define/contract (compileTarget sym)
-  (symbol? . -> . string?)
-  (string-replace (symbol->string (label-name sym) "$" 0 1)))
+(define/contract (compileTarget targ)
+  ((or/c symbol? integer?) . -> . string?)
+  (cond
+    [(symbol? targ) (symbol->string targ)]
+    [(integer? targ) (string-replace (number->string targ) "$" 0 1)]))
 
 (define/contract (compileReturn _)
   (return? . -> . string?)
@@ -24,7 +26,7 @@
 
 (define/contract (compileCall kall)
   (call? . -> . string?)
-  (string-append "call " (call-func kall)))
+  (string-append "call " (compileTarget (call-func kall))))
 
 ;; FIXME
 (define compileTailCall compileCall)
@@ -67,7 +69,7 @@
 
 (define/contract (compileCmp cmp)
   (cmp? . -> . string?)
-  "deadbeef")
+  "#deadbeef")
 
 (define/contract (compileGoto goto)
   (goto? . -> . string?)
@@ -76,19 +78,49 @@
 
 (define/contract (compileCjump cjmp)
   (cjump? . -> . string?)
-  "deadbeef")
+  "#deadbeef")
+
+(define/contract (runtime-instrs func args)
+  (-> symbol? (listof (or/c integer? symbol?)) (listof l1instr?))
+  (if (= (length args) 1)
+      (list
+       (mathop `-= `esp 4)
+       (assign (mem `esp 0) (car args))
+       (call func)
+       (mathop `+= `esp 4))
+      (list
+       (mathop `-= `esp 8)
+       (assign (mem `esp -4) (car args))
+       (assign (mem `esp 0) (cadr args))
+       (call func)
+       (mathop `+= `esp 8))))
 
 (define/contract (compilePrint prnt)
   (print? . -> . string?)
-  "deadbeef")
+  (foldr
+   string-append
+   ""
+   (map compileInstr (runtime-instrs `print (list (print-val prnt))))))
 
 (define/contract (compileAllocate alloc)
   (allocate? . -> . string?)
-  "deadbeef")
+  (foldr
+   string-append
+   ""
+   (map compileInstr (runtime-instrs
+                      `allocate
+                      (list (allocate-size alloc)
+                            (allocate-init alloc))))))
 
 (define/contract (compileArrayError arrerr)
   (array-error? . -> . string?)
-  "deadbeef")
+  (foldr
+   string-append
+   ""
+   (map compileInstr (runtime-instrs
+                      `print_error
+                      (list (array-error-ptr arrerr)
+                            (array-error-index arrerr))))))
 
 (define/contract (compileInstr instr)
   (l1instr? . -> . string?)
@@ -118,7 +150,7 @@
                             (string-append (compileLabel (l1fun-name fun)) "\n")
                             (map compileInstr (l1fun-instrs fun))))
    (if (eq? (label-name (l1fun-name fun)) `:go)
-       "\tmovl $0, %eax\n\tret\n"
+       "\tmovl $0, %eax\n\tleave\n\tret\n"
        ""
        )))
 
