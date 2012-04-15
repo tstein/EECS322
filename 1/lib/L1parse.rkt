@@ -36,7 +36,7 @@
     [`(,x ,y ,z ,a ,b ,c)
      (cjump y z a b c)]
     [`(,x ,y ,z ,a ,b)
-     (cmp a z b)]
+     (cmp x a z b)]
     [`(,x ,y ,z)
      (if (equal? y `<-)
          (if (list? z)

@@ -22,9 +22,10 @@
 (define-struct/contract mathop ([op symbol?]
                                 [larg t?]
                                 [rarg t?]))
-(define-struct/contract cmp ([comparator symbol?]
-                             [larg symbol?]
-                             [rarg symbol?]))
+(define-struct/contract cmp ([destination (or/c symbol? null?)]
+                             [comparator symbol?]
+                             [larg t?]
+                             [rarg t?]))
 (define-struct/contract goto ([target symbol?]))
 (define-struct/contract cjump ([larg t?]
                                [op symbol?]

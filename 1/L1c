@@ -92,7 +92,7 @@ int main() {
 EOF
 
 # Compile L1.
-racket lib/L1entry.rkt $@ > prog.S
+racket lib/L1entry.rkt "$@" > prog.S
 
 # Assemble and link with gcc.
 gcc -m32 -O3 -funroll-loops -g -o a.out runtime.c prog.S

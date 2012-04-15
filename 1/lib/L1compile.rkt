@@ -9,6 +9,11 @@
 (define postamble
   ".size go, .-go\n.section .note.GNU-stack,\"\",@progbits\n")
 
+(define/contract (regToLowReg reg)
+  (symbol? . -> . symbol?)
+  (string->symbol
+   (string-append (substring (symbol->string reg) 1 2) "l")))
+
 (define/contract (compileLabel lab)
   (label? . -> . string?)
   (string-append 
@@ -29,7 +34,10 @@
                           `ebp
                           `esp))
                         (string-append "*%" (symbol->string targ))
-                        (symbol->string targ))]
+                        (let ([targ (symbol->string targ)])
+                          (if (string-prefix? ":" targ)
+                              (substring targ 1)
+                              targ)))]
     [(integer? targ) (string-replace (number->string targ) "$" 0 1)]))
 
 (define/contract (compileReturn _)
@@ -41,7 +49,8 @@
   (string-append "call " (compileTarget (call-func kall))))
 
 ;; FIXME
-(define compileTailCall compileCall)
+(define (compileTailCall tcall)
+  (compileCall (call (tail-call-func tcall))))
 
 (define/contract (compileArg arg)
   ((or/c integer? symbol? label? mem?) . -> . string?)
@@ -78,13 +87,51 @@
        [`&= "andl "]
        [`<<= "sal "]
        [`>>= "sar "])
-     (compileArg rarg)
+     (let ([rarg (if (and (or (eq? op `<<=)
+                              (eq? op `>>=))
+                          (symbol? rarg))
+                     (regToLowReg rarg)
+                     rarg)])
+       (compileArg rarg))
      ", "
      (compileArg larg))))
 
 (define/contract (compileCmp cmp)
   (cmp? . -> . string?)
-  "#deadbeef")
+  (let ([larg (cmp-larg cmp)]
+        [rarg (cmp-rarg cmp)]
+        [op (cmp-comparator cmp)]
+        [opfun (match (cmp-comparator cmp)
+                 [`< <]
+                 [`<= <=]
+                 [`= =])]
+        [dest (cmp-destination cmp)])
+    (if
+     (and (integer? larg) (integer? rarg))
+     (compileInstr (assign
+                    dest
+                    (if (opfun larg rarg)1 0)))
+     (if (integer? larg)
+         (string-append
+          "cmpl "
+          (compileArg larg)
+          ", "
+          (compileArg rarg)
+          "\n\tneg "
+          (compileArg rarg)
+          (if (and (not (eq? dest null)) (not (eq? dest rarg)))
+              (string-append "\n" (compileInstr (assign dest rarg)))
+              ""))
+         (string-append
+          "cmpl "
+          (compileArg rarg)
+          ", "
+          (compileArg larg)
+          "\n"
+          (if (and (not (eq? dest null)) (not (eq? dest larg)))
+              (string-append "\n" (compileInstr (assign dest larg)))
+              "")))
+     )))
 
 (define/contract (compileGoto goto)
   (goto? . -> . string?)
@@ -93,7 +140,46 @@
 
 (define/contract (compileCjump cjmp)
   (cjump? . -> . string?)
-  "#deadbeef")
+  (let ([larg (cjump-larg cjmp)]
+        [rarg (cjump-rarg cjmp)]
+        [op (cjump-op cjmp)]
+        [ttarg (cjump-ttarget cjmp)]
+        [ftarg (cjump-ftarget cjmp)])
+    (if (and (integer? larg) (integer? rarg))
+        (let ([opfun (match op
+                       [`< <]
+                       [`<= <=]
+                       [`= =])])
+          (if (opfun larg rarg)
+              (compileGoto (goto ttarg))
+              (compileGoto (goto ftarg))))
+        (if (integer? larg)
+            (string-append
+             "cmpl "
+             (compileArg larg)
+             ", "
+             (compileArg rarg)
+             "\n\t"
+             (match op
+               [`<  "jg "]
+               [`<= "jge "]
+               [`=  "je "])
+             (compileTarget ttarg)
+             "\n\tjmp "
+             (compileTarget ftarg))
+            (string-append
+             "cmpl "
+             (compileArg rarg)
+             ", "
+             (compileArg larg)
+             "\n\t"
+             (match op
+               [`<  "jl "]
+               [`<= "jle "]
+               [`=  "je "])
+             (compileTarget ttarg)
+             "\n\tjmp "
+             (compileTarget ftarg))))))
 
 (define/contract (runtime-instrs func args)
   (-> symbol? (listof (or/c integer? symbol?)) (listof l1instr?))
