@@ -14,6 +14,10 @@
   (string->symbol
    (string-append (substring (symbol->string reg) 1 2) "l")))
 
+(define/contract (randomLabel)
+  (-> string?)
+  (string-append "_" (number->string (random 999999999))))
+
 (define/contract (compileLabel lab)
   (label? . -> . string?)
   (string-append 
@@ -48,9 +52,10 @@
   (call? . -> . string?)
   (string-append "call " (compileTarget (call-func kall))))
 
-;; FIXME
 (define (compileTailCall tcall)
-  (compileCall (call (tail-call-func tcall))))
+  (string-append
+   (compileInstr (call (tail-call-func tcall)))
+   (compileInstr (return))))
 
 (define/contract (compileArg arg)
   ((or/c integer? symbol? label? mem?) . -> . string?)
@@ -111,27 +116,53 @@
      (compileInstr (assign
                     dest
                     (if (opfun larg rarg)1 0)))
-     (if (integer? larg)
-         (string-append
-          "cmpl "
-          (compileArg larg)
-          ", "
-          (compileArg rarg)
-          "\n\tneg "
-          (compileArg rarg)
-          (if (and (not (eq? dest null)) (not (eq? dest rarg)))
-              (string-append "\n" (compileInstr (assign dest rarg)))
-              ""))
-         (string-append
-          "cmpl "
-          (compileArg rarg)
-          ", "
-          (compileArg larg)
-          "\n"
-          (if (and (not (eq? dest null)) (not (eq? dest larg)))
-              (string-append "\n" (compileInstr (assign dest larg)))
-              "")))
-     )))
+     (string-append
+      (if (integer? larg)
+          (string-append
+           "cmpl "
+           (compileArg larg)
+           ", "
+           (compileArg rarg)
+           "\n")
+          (string-append
+           "cmpl "
+           (compileArg rarg)
+           ", "
+           (compileArg larg)
+           "\n"))
+      (if (not (eq? null dest))
+          (let ([ttarg (randomLabel)]
+                [ftarg (randomLabel)]
+                [aftarg (randomLabel)])
+            (string-append
+             "\t"
+             (if (integer? larg)
+                 (match op
+                   [`<  "jg "]
+                   [`<= "jge "]
+                   [`=  "je "])
+                 (match op
+                   [`<  "jl "]
+                   [`<= "jle "]
+                   [`=  "je "]))
+             ttarg
+             "\n\tjmp "
+             ftarg
+             "\n"
+             (compileInstr
+              (label (string->symbol (string-append ":" ttarg))))
+             (compileInstr
+              (assign dest 1))
+             (compileInstr
+              (goto (string->symbol (string-append ":" aftarg))))
+             (compileInstr
+              (label (string->symbol (string-append ":" ftarg))))
+             (compileInstr
+              (assign dest 0))
+             (compileInstr
+              (label (string->symbol (string-append ":" aftarg)))))
+            )
+          "")))))
 
 (define/contract (compileGoto goto)
   (goto? . -> . string?)
