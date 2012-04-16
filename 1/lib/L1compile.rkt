@@ -4,10 +4,10 @@
          "L1parse.rkt")
 
 (define preamble
-  ".text\n.globl go\n.type go, @function\n")
+  ".text\n.globl _go\n.type _go, @function\n")
 
 (define postamble
-  ".size go, .-go\n.section .note.GNU-stack,\"\",@progbits\n")
+  ".size _go, .-_go\n.section .note.GNU-stack,\"\",@progbits\n")
 
 (define/contract (regToLowReg reg)
   (symbol? . -> . symbol?)
@@ -20,7 +20,8 @@
 
 (define/contract (compileLabel lab)
   (label? . -> . string?)
-  (string-append 
+  (string-append
+   "_"
    (substring (symbol->string (label-name lab)) 1) ":"))
 
 (define/contract (compileTarget targ)
@@ -40,7 +41,7 @@
                         (string-append "*%" (symbol->string targ))
                         (let ([targ (symbol->string targ)])
                           (if (string-prefix? ":" targ)
-                              (substring targ 1)
+                              (string-append "_" (substring targ 1))
                               targ)))]
     [(integer? targ) (string-replace (number->string targ) "$" 0 1)]))
 
@@ -63,7 +64,7 @@
     [(integer? arg) (string-append "$" (number->string arg))]
     [(symbol? arg) (let ([arg (symbol->string arg)])
                      (if (string-prefix? ":" arg)
-                         (string-replace arg "$" 0 1)
+                         (string-replace arg "$_" 0 1)
                          (string-append "%" arg)))]
     [(label? arg) (compileTarget (label-name arg))]
     [(mem? arg) (string-append
@@ -145,28 +146,19 @@
                    [`<  "jl "]
                    [`<= "jle "]
                    [`=  "je "]))
-             ttarg
-             "\n\tjmp "
-             ftarg
-             "\n"
-             (compileInstr
-              (label (string->symbol (string-append ":" ttarg))))
-             (compileInstr
-              (assign dest 1))
-             (compileInstr
-              (goto (string->symbol (string-append ":" aftarg))))
-             (compileInstr
-              (label (string->symbol (string-append ":" ftarg))))
-             (compileInstr
-              (assign dest 0))
-             (compileInstr
-              (label (string->symbol (string-append ":" aftarg)))))
-            )
+             ttarg "\n"
+             "\tjmp " ftarg "\n"
+             "\t" ttarg ":\n"
+             (compileInstr (assign dest 1))
+             "\tjmp " aftarg "\n"
+             "\t" ftarg ":\n"
+             (compileInstr (assign dest 0))
+             "\t" aftarg ":\n"))
           "")))))
 
 (define/contract (compileGoto goto)
   (goto? . -> . string?)
-  (string-append "jmp "
+  (string-append "jmp _"
                  (substring (symbol->string (goto-target goto)) 1)))
 
 (define/contract (compileCjump cjmp)

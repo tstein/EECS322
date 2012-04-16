@@ -87,7 +87,7 @@ int main() {
     exit(-1);
   }
   allocptr=heap;
-  go();   // call into the generated code
+  _go();   // call into the generated code
  return 0;
 }
 EOF
