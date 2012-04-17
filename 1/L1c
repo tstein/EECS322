@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+#set -e
 
 # Create the C runtime.
 if [ ! -e runtime.c ]; then
@@ -94,11 +94,11 @@ EOF
 fi
 
 # Compile L1.
-racket lib/L1entry.rkt "$@" > "$@".s
+racket lib/L1entry.rkt "$@" > prog.s
 
 # Assemble and link with gcc.
-gcc -m32 -O3 -funroll-loops -g -o a.out runtime.c "$@".s
+gcc -m32 -O3 -funroll-loops -o a.out runtime.c prog.s
 
 # Clean up.
-#rm -f prog.S runtime.c
+rm -f prog.s runtime.c
 
