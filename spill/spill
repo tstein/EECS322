@@ -1,0 +1,22 @@
+#!/usr/bin/env racket
+#lang racket
+(require "lib/spill.rkt"
+         "lib/parse.rkt"
+         "lib/types.rkt"
+         "lib/compile.rkt")
+
+
+
+(define (main)
+  (let ([filename (command-line #:args (filename) filename)])
+    (let ([text (file->list filename)])
+      (let ([code (car text)]
+            [spillvar (cadr text)]
+            [offset (caddr text)]
+            [prefix (cadddr text)])
+        (display (compileFun
+                  (fun (label 'go)
+                       (spill
+                        (map parseInstr code) spillvar offset prefix))))))))
+
+(main)
