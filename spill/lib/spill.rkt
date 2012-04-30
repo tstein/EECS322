@@ -1,6 +1,7 @@
 #lang racket
 (require "types.rkt")
 
+(define dirty #f)
 (define spilled 0)
 (define spillct 0)
 (define sprefix "deadbeef")
@@ -14,6 +15,32 @@
    (symbol->string prefix)
    (number->string spillct)))
 
+(define/contract (make-tvar-kill/stack tvar offset)
+  (-> symbol? integer? assign?)
+  (make-tvar-kill tvar `ebp offset))
+
+(define/contract (make-tvar-kill/mem tvar mm)
+  (-> symbol? mem? assign?)
+  (make-tvar-kill tvar (mem-addr mm) (mem-offset mm)))
+
+(define/contract (make-tvar-kill tvar addr offset)
+  (-> symbol? symbol? integer? assign?)
+  (begin (let ([spillnum 
+                (if dirty
+                    (+ spillct 1)
+                    spillct)])
+           (set! dirty #f)
+           (set! spillct (+ spillct 1))
+           (assign tvar (mem addr offset)))))
+
+(define/contract (make-tvar-gen tvar offset)
+  (-> symbol? integer? assign?)
+  (dirtify!)
+  (assign (mem `ebp offset) tvar))
+
+(define (dirtify!)
+  (set! dirty #t))
+
 (define (get-spill-bits)
   ;; FIXME: What contract works here?
   (let ([sval (get-spill)])
@@ -23,6 +50,7 @@
 (define/contract (spill code var offset prefix)
   (-> (listof l2instr?) symbol? number? symbol? (listof l2instr?))
   (begin
+    (set! dirty #f)
     (set! spilled offset)
     (set! sprefix prefix)
     (filter (λ (x) (not (zilch? x))) (flatten (map
@@ -53,20 +81,45 @@
           [offset (cadr bits)])
       (cond
         [(and (eq? src dst) (eq? src v)) (list)]
+        [(and (mem? dst) (eq? (mem-addr dst) v))
+         (list
+          (make-tvar-kill/stack tvar offset)
+          (assign (mem tvar (mem-offset dst)) (if (eq? src v)
+                                                  (begin
+                                                    (dirtify!)
+                                                    tvar)
+                                                  src)))]
+        [(and (mem? src) (eq? (mem-addr src) v))
+         (begin
+           (dirtify!)
+           (list
+            (make-tvar-kill/stack tvar offset)
+            (assign (if (eq? dst v)
+                        tvar
+                        dst)
+                    (mem tvar (mem-offset src)))
+            (if (eq? dst v)
+                (make-tvar-gen tvar offset)
+                (zilch))))]
         [(eq? dst v) (if (mem? src)
                          (list
-                          (assign tvar src)
-                          (assign (mem `ebp offset) tvar))
+                          (make-tvar-kill/mem tvar
+                                              (if (eq? (mem-addr src) v)
+                                                  (mem tvar (mem-offset src))
+                                                  src))
+                          (make-tvar-gen tvar offset))
                          (list
                           (assign (mem `ebp offset) src)))]
-        [(eq? src v) (list
-                      (assign dst (mem `ebp offset)))]
-        [(and (mem? dst) (eq? (mem-addr dst) v)) (list
-                                                  (assign tvar (mem `ebp offset))
-                                                  (assign (mem tvar (mem-offset dst)) src))]
-        [(and (mem? src) (eq? (mem-addr src) v)) (list
-                                                  (assign tvar (mem `ebp offset))
-                                                  (assign dst (mem tvar (mem-offset src))))]
+        [(eq? src v) (begin
+                       (dirtify!)
+                       (if (mem? dst)
+                           (list
+                            (make-tvar-kill/stack tvar offset)
+                            (assign (if (eq? (mem-addr dst) v)
+                                        (mem tvar (mem-offset dst))
+                                        dst)
+                                    tvar))
+                           (list (assign dst (mem `ebp offset)))))]
         [else (list i)]))))
 
 (define/contract (spill-mathop i v)
@@ -79,13 +132,14 @@
           [offset (cadr bits)])
       (cond
         [(eq? larg v) (list
-                       (assign tvar (mem `ebp offset))
+                       (make-tvar-kill/stack tvar offset)
                        (mathop op tvar (if (eq? rarg v)
                                            tvar
                                            rarg))
-                       (assign (mem `ebp offset) tvar))]
-        [(eq? rarg v) (list (assign tvar (mem `ebp offset))
-                            (mathop op larg tvar))]
+                       (make-tvar-gen tvar offset))]
+        [(eq? rarg v) (list
+                       (make-tvar-kill/stack tvar offset)
+                       (mathop op larg tvar))]
         [else (list i)]))))
 
 (define/contract (spill-cmp i v)
@@ -99,7 +153,7 @@
           [offset (cadr bits)])      
       (list
        (if (or (eq? larg v) (eq? rarg v))
-           (assign tvar (mem `ebp offset))
+           (make-tvar-kill/stack tvar offset)
            (zilch))
        (cmp (if (eq? dest v)
                 tvar
@@ -112,7 +166,7 @@
                 tvar
                 rarg))
        (if (eq? dest v)
-           (assign (mem `ebp offset) tvar)
+           (make-tvar-gen tvar offset)
            (zilch))))))
 
 
@@ -123,7 +177,7 @@
     (let ([tvar (string->symbol (car bits))]
           [offset (cadr bits)])
       (if (eq? target v)
-          (list (assign tvar (mem `ebp offset))
+          (list (make-tvar-kill/stack tvar offset)
                 (goto tvar))
           (list i)))))
 
@@ -140,20 +194,28 @@
       (list (if (foldl (λ (x y) (or (eq? x v) y))
                        #f
                        (list larg rarg ttarg ftarg))
-                (assign tvar (mem `ebp offset))
+                (make-tvar-kill/stack tvar offset)
                 (zilch))
             (cjump (if (eq? larg v)
-                       tvar
+                       (begin
+                         (dirtify!)
+                         tvar)
                        larg)
                    op
                    (if (eq? rarg v)
-                       tvar
+                       (begin
+                         (dirtify!)
+                         tvar)
                        rarg)
                    (if (eq? ttarg v)
-                       tvar
+                       (begin
+                         (dirtify!)
+                         tvar)
                        ttarg)
                    (if (eq? ftarg v)
-                       tvar
+                       (begin
+                         (dirtify!)
+                         tvar)
                        ftarg))))))
 
 
@@ -164,7 +226,7 @@
     (let ([tvar (string->symbol (car bits))]
           [offset (cadr bits)])
       (if (eq? func v)
-          (list (assign tvar (mem `ebp offset))
+          (list (make-tvar-kill/stack tvar offset)
                 (call tvar))
           (list i)))))
 
@@ -175,7 +237,7 @@
     (let ([tvar (string->symbol (car bits))]
           [offset (cadr bits)])
       (if (eq? func v)
-          (list (assign tvar (mem `ebp offset))
+          (list (make-tvar-kill/stack tvar offset)
                 (tail-call tvar))
           (list i)))))
 
@@ -187,7 +249,7 @@
           [offset (cadr bits)])
       (if (eq? val v)
           (list
-           (assign tvar (mem `ebp offset))
+           (make-tvar-kill/stack tvar offset)
            (print tvar))
           (list i)))))
 
@@ -199,7 +261,7 @@
     (let ([tvar (string->symbol (car bits))]
           [offset (cadr bits)])
       (if (or (eq? size v) (eq? init v))
-          (list (assign tvar (mem `ebp offset))
+          (list (make-tvar-kill/stack tvar offset)
                 (allocate
                  (if (eq? size v)
                      tvar
@@ -217,7 +279,7 @@
     (let ([tvar (string->symbol (car bits))]
           [offset (cadr bits)])
       (if (or (eq? ptr v) (eq? index v))
-          (list (assign tvar (mem `ebp offset))
+          (list (make-tvar-kill/stack tvar offset)
                 (array-error
                  (if (eq? ptr v)
                      tvar
