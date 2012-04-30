@@ -37,6 +37,7 @@
                                   [init t?]))
 (define-struct/contract array-error ([ptr t?]
                                      [index t?]))
+(define-struct/contract zilch ())
 
 (define l2instr? (or/c assign?
                        mathop?
@@ -50,7 +51,8 @@
                        print?
                        allocate?
                        array-error?
-                       mem?))
+                       mem?
+                       zilch?))
 
 (define-struct/contract fun ([name label?]
                              [instrs (listof l2instr?)]))
@@ -70,5 +72,6 @@
          (struct-out print)
          (struct-out allocate)
          (struct-out array-error)
+         (struct-out zilch)
          (struct-out fun)
          (struct-out prog))

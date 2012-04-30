@@ -50,31 +50,74 @@
 
 (define/contract (compileMathop mthp)
   (mathop? . -> . string?)
-  mthp)
+  (let ([op (mathop-op mthp)]
+        [larg (mathop-larg mthp)]
+        [rarg (mathop-rarg mthp)])
+    (parens (string-append
+             (compileArg larg) " "
+             (symbol->string op) " "
+             (compileArg rarg)))))
+             
 
-(define/contract (compileCmp cmp)
+(define/contract (compileCmp comp)
   (cmp? . -> . string?)
-  cmp)
+  (let ([dest (cmp-destination comp)]
+        [cmptr (cmp-comparator comp)]
+        [larg (cmp-larg comp)]
+        [rarg (cmp-rarg comp)])
+    (parens (string-append
+             (compileArg dest) " <- "
+             (compileArg larg) " "
+             (symbol->string cmptr) " "
+             (compileArg rarg)))))
+             
 
-(define/contract (compileGoto goto)
+(define/contract (compileGoto gt)
   (goto? . -> . string?)
-  goto)
+  (parens (string-append
+           "goto "
+           (symbol->string (goto-target gt)))))
 
 (define/contract (compileCjump cjmp)
   (cjump? . -> . string?)
-  cjmp)
+  (let ([larg (cjump-larg cjmp)]
+        [op (cjump-op cjmp)]
+        [rarg (cjump-rarg cjmp)]
+        [ttarg (cjump-ttarget cjmp)]
+        [ftarg (cjump-ftarget cjmp)])
+  (parens (string-append
+           "cjump "
+           (compileArg larg) " "
+           (symbol->string op) " "
+           (compileArg rarg) " "
+           (compileArg ttarg) " "
+           (compileArg ftarg)))))
+           
+           
 
 (define/contract (compilePrint prnt)
   (print? . -> . string?)
-  prnt)
+  (parens (string-append
+           "eax <- (print "
+           (compileArg (print-val prnt)) ")")))
 
 (define/contract (compileAllocate alloc)
   (allocate? . -> . string?)
-  alloc)
+  (let ([size (allocate-size alloc)]
+        [init (allocate-init alloc)])
+  (parens (string-append
+           "eax <- (allocate "
+           (compileArg size) " "
+           (compileArg init) ")"))))
 
 (define/contract (compileArrayError arrerr)
   (array-error? . -> . string?)
-  arrerr)
+  (let ([ptr (array-error-ptr arrerr)]
+        [index (array-error-index arrerr)])
+  (parens (string-append
+           "eax <- (array-error "
+           (compileArg ptr) " "
+           (compileArg index) ")"))))
 
 (define/contract (compileInstr instr)
   (l2instr? . -> . string?)
