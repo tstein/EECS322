@@ -25,13 +25,15 @@
 
 (define/contract (make-tvar-kill tvar addr offset)
   (-> symbol? symbol? integer? assign?)
-  (begin (let ([spillnum 
-                (if dirty
-                    (+ spillct 1)
-                    spillct)])
-           (set! dirty #f)
-           (set! spillct (+ spillct 1))
-           (assign tvar (mem addr offset)))))
+  (begin (set! spillct (+ spillct 1))
+         (set! dirty #f)
+         (assign tvar (mem addr offset))))
+
+(define/contract (make-tvar-kill/cmp tvar)
+  (-> symbol? symbol?)
+  (begin (if dirty (set! spillct (+ spillct 1)) '())
+         (set! dirty #f)
+         tvar))
 
 (define/contract (make-tvar-gen tvar offset)
   (-> symbol? integer? assign?)
@@ -156,7 +158,7 @@
            (make-tvar-kill/stack tvar offset)
            (zilch))
        (cmp (if (eq? dest v)
-                tvar
+                (make-tvar-kill/cmp tvar)
                 dest)
             cmptr
             (if (eq? larg v)
