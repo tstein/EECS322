@@ -1,0 +1,9 @@
+#!/usr/bin/env racket
+#lang racket
+(require "lib/liveness.rkt"
+         "lib/parse.rkt")
+
+(define (main)
+  (let ([filename (command-line #:args (filename) filename)])
+    (let ([text (file->list filename)])
+      (display (liveness (map parseInstr text))))))
