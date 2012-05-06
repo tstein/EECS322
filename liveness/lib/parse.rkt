@@ -60,4 +60,5 @@
          (return)
          (label x))]))
 
-(provide parseInstr)
+(provide parseInstr
+         parseFun)

@@ -3,14 +3,14 @@
          "types.rkt")
 
 ;; utility
-(define/contract (list-o-lists len)
-  (-> integer? (listof null?))
-  (define/contract (list-o-lists/inner len lists)
-    (-> integer? (listof null?) (listof null?))
+(define/contract (list-o-sets len)
+  (-> integer? (listof set?))
+  (define/contract (list-o-sets/inner len lists)
+    (-> integer? (listof set?) (listof set?))
     (if (= len 0)
-        '()
-        (cons '() (list-o-lists/inner (- len 1) lists))))
-  (list-o-lists/inner len '()))
+        (set)
+        (cons (set) (list-o-sets/inner (- len 1) lists))))
+  (list-o-sets/inner len '()))
 
 (define/contract (filter-non-vars l)
   (-> list? (listof symbol?))
@@ -18,15 +18,17 @@
 
 
 ;; liveness
-(define/contract (liveness instrs)
-  (-> (listof l2instr?) (listof (listof symbol?)))
-  (define numinstrs (length instrs))
+(define/contract (liveness f)
+  ;; FIXME: This contract is way too relaxed.
+  (-> fun? (listof (listof (or/c symbol? (listof symbol?)))))
+  (define raw-instrs (fun-instrs f))
+  (define numinstrs (length raw-instrs))
   (define instrs (for/list ([i (in-range 0 numinstrs)]
-                            [j instrs])
+                            [j raw-instrs])
                    (cons i j)))
-  (define ins (list-o-lists numinstrs))
-  (define outs (list-o-lists numinstrs))
-  '('('in '('x)) '('out '('y))))
+  (define ins (list-o-sets numinstrs))
+  (define outs (list-o-sets numinstrs))
+  '((in (x)) (out (y))))
 
 
 ;; gen

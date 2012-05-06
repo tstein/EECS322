@@ -1,9 +1,13 @@
 #!/usr/bin/env racket
 #lang racket
-(require "lib/liveness.rkt"
-         "lib/parse.rkt")
+(require srfi/13
+         "lib/liveness.rkt"
+         "lib/parse.rkt"
+         "lib/types.rkt")
 
 (define (main)
   (let ([filename (command-line #:args (filename) filename)])
-    (let ([text (file->list filename)])
-      (display (liveness (map parseInstr text))))))
+    (let ([text (call-with-input-file filename read)])
+      (display (liveness (parseFun text #t))))))
+
+(main)
