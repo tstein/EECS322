@@ -2,15 +2,28 @@
 (require srfi/1
          "types.rkt")
 
+(define-struct/contract inout-sets
+  ([ins  (listof list?)]
+   [outs (listof list?)])
+  #:property prop:custom-write
+  (λ (v p w?)
+    (fprintf p
+             "(~a ~a)"
+             (cons 'in  (inout-sets-ins  v))
+             (cons 'out (inout-sets-outs v)))))
+
+
 ;; utility
-(define/contract (list-o-sets len)
-  (-> integer? (listof set?))
-  (define/contract (list-o-sets/inner len lists)
-    (-> integer? (listof set?) (listof set?))
+(define/contract (init-inout-sets len)
+  (-> integer? inout-sets?)
+  (define/contract (init-inout-sets/inner len sets)
+    (-> integer? inout-sets? inout-sets?)
     (if (= len 0)
-        (set)
-        (cons (set) (list-o-sets/inner (- len 1) lists))))
-  (list-o-sets/inner len '()))
+        sets
+        (let ([ins  (cons (list) (inout-sets-ins  sets))]
+              [outs (cons (list) (inout-sets-outs sets))])
+          (init-inout-sets/inner (- len 1) (inout-sets ins outs)))))
+  (init-inout-sets/inner len (inout-sets '() '())))
 
 (define/contract (filter-non-vars l)
   (-> list? (listof symbol?))
@@ -20,15 +33,14 @@
 ;; liveness
 (define/contract (liveness f)
   ;; FIXME: This contract is way too relaxed.
-  (-> fun? (listof (listof (or/c symbol? (listof symbol?)))))
+  (-> fun? inout-sets?)
   (define raw-instrs (fun-instrs f))
   (define numinstrs (length raw-instrs))
   (define instrs (for/list ([i (in-range 0 numinstrs)]
                             [j raw-instrs])
                    (cons i j)))
-  (define ins (list-o-sets numinstrs))
-  (define outs (list-o-sets numinstrs))
-  '((in (x)) (out (y))))
+  (define inouts (init-inout-sets numinstrs))
+  (inout-sets (list '(x)) (list '(y))))
 
 
 ;; gen
