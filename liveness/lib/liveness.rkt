@@ -3,14 +3,16 @@
          "types.rkt")
 
 (define-struct/contract inout-sets
-  ([ins  (listof list?)]
-   [outs (listof list?)])
+  ([ins  (listof set?)]
+   [outs (listof set?)])
   #:property prop:custom-write
   (λ (v p w?)
     (fprintf p
              "(~a ~a)"
-             (cons 'in  (inout-sets-ins  v))
-             (cons 'out (inout-sets-outs v)))))
+             (cons 'in
+                   (map symbol-set->sorted-list (inout-sets-ins  v)))
+             (cons 'out
+                   (map symbol-set->sorted-list (inout-sets-outs v))))))
 
 
 ;; utility
@@ -20,10 +22,19 @@
     (-> integer? inout-sets? inout-sets?)
     (if (= len 0)
         sets
-        (let ([ins  (cons (list) (inout-sets-ins  sets))]
-              [outs (cons (list) (inout-sets-outs sets))])
+        (let ([ins  (cons (set) (inout-sets-ins  sets))]
+              [outs (cons (set) (inout-sets-outs sets))])
           (init-inout-sets/inner (- len 1) (inout-sets ins outs)))))
   (init-inout-sets/inner len (inout-sets '() '())))
+
+
+(define/contract (symbol-set->sorted-list syms)
+  (-> set? (listof symbol?))
+  (sort (set->list syms)
+        (λ (s o)
+          (string<?
+           (symbol->string s)
+           (symbol->string o)))))
 
 (define/contract (filter-non-vars l)
   (-> list? (listof symbol?))
@@ -40,7 +51,7 @@
                             [j raw-instrs])
                    (cons i j)))
   (define inouts (init-inout-sets numinstrs))
-  (inout-sets (list '(x)) (list '(y))))
+  (inout-sets (list (set 'x)) (list (set 'y))))
 
 
 ;; gen
