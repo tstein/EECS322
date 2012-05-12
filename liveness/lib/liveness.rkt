@@ -2,6 +2,7 @@
 (require srfi/1
          "types.rkt")
 
+
 (define-struct/contract inout-sets
   ([ins  (listof set?)]
    [outs (listof set?)])
@@ -13,6 +14,27 @@
                    (map symbol-set->sorted-list (inout-sets-ins  v)))
              (cons 'out
                    (map symbol-set->sorted-list (inout-sets-outs v))))))
+
+
+(define/contract (inout-sets-eq? one other)
+  (-> inout-sets? inout-sets? boolean?)
+  (and
+   (= (length (inout-sets-ins one))
+      (length (inout-sets-ins other)))
+   (= (length (inout-sets-outs one))
+      (length (inout-sets-outs other)))
+   (foldl (λ (fst snd last)
+            (and last
+                 (set=? fst snd)))
+          #t
+          (inout-sets-ins one)
+          (inout-sets-ins other))
+   (foldl (λ (fst snd last)
+            (and last
+                 (set=? fst snd)))
+          #t
+          (inout-sets-outs one)
+          (inout-sets-outs other))))
 
 
 ;; utility
@@ -28,6 +50,12 @@
   (init-inout-sets/inner len (inout-sets '() '())))
 
 
+(define/contract (get-instr instrset n)
+  (-> set? integer? l2instr?)
+  (let ([instrs (set->list instrset)])
+    (cdar (filter (λ (i) (eq? n (car i))) instrs))))
+
+
 (define/contract (symbol-set->sorted-list syms)
   (-> set? (listof symbol?))
   (sort (set->list syms)
@@ -36,6 +64,7 @@
            (symbol->string s)
            (symbol->string o)))))
 
+
 (define/contract (filter-non-vars l)
   (-> list? (listof symbol?))
   (filter symbol? l))
@@ -43,7 +72,6 @@
 
 ;; liveness
 (define/contract (liveness f)
-  ;; FIXME: This contract is way too relaxed.
   (-> fun? inout-sets?)
   (define raw-instrs (fun-instrs f))
   (define numinstrs (length raw-instrs))
@@ -51,7 +79,15 @@
                             [j raw-instrs])
                    (cons i j)))
   (define inouts (init-inout-sets numinstrs))
-  (inout-sets (list (set 'x)) (list (set 'y))))
+  (define/contract (liveness/inner)
+    (-> inout-sets?)
+    (define old-inouts inouts)
+    (for/list ([i (in-range 0 numinstrs)])
+      #t)
+    (if (inout-sets-eq? inouts old-inouts)
+        inouts
+        (liveness/inner)))
+  (liveness/inner))
 
 
 ;; gen
