@@ -1,5 +1,6 @@
 #lang racket
 (require srfi/1
+         srfi/13
          "types.rkt")
 
 
@@ -67,7 +68,10 @@
 
 (define/contract (filter-non-vars l)
   (-> list? (listof symbol?))
-  (filter symbol? l))
+  (filter (λ (x)
+            (and (symbol? x)
+                 (not (string-prefix? ":" (symbol->string x)))))
+          l))
 
 
 ;; liveness
@@ -78,8 +82,9 @@
   (define instrs (for/list ([i (in-range 0 numinstrs)]
                             [j raw-instrs])
                    (cons i j)))
-  (define/contract (liveness/inner inouts)
-    (-> inout-sets? inout-sets?)
+  (define label-map (make-label-map instrs))
+  (define/contract (liveness/inner inouts label-map)
+    (-> inout-sets? hash? inout-sets?)
     (define old-inouts inouts)
     (define old-ins  (inout-sets-ins  old-inouts))
     (define old-outs (inout-sets-outs old-inouts))
@@ -87,27 +92,57 @@
     (define outs (list))
     (for/list ([i (in-range 0 numinstrs)])
       (define thisinstr (get-instr instrs i))
+      (define succs (successors instrs i label-map))
       (define new-ins (set-union (list->set (gen thisinstr))
                                  (set-subtract (list-ref old-outs i)
                                                (list->set (kill thisinstr)))))
       (define new-outs (if (< i (- numinstrs 1))
-                           (list-ref old-ins (+ i 1))
+                           (foldl
+                            set-union
+                            (set)
+                            (map (λ (x)
+                                   (list-ref old-ins x))
+                                 succs))
                            (set)))
       (set! ins  (reverse (cons new-ins  (reverse ins))))
       (set! outs (reverse (cons new-outs (reverse outs)))))
     (let ([inouts (inout-sets ins outs)])
       (if (inout-sets-eq? inouts old-inouts)
           inouts
-          (liveness/inner inouts))))
-  (liveness/inner (init-inout-sets numinstrs)))
+          (liveness/inner inouts label-map))))
+  (liveness/inner (init-inout-sets numinstrs) label-map))
 
+
+(define/contract (make-label-map instrs)
+  (-> (listof (cons/c integer? l2instr?)) hash?)
+  (let ([label-map (make-hash)])
+    (for/list ([i (in-range 0 (length instrs))])
+      (let ([instr (cdr (list-ref instrs i))])
+        (if (label? instr)
+            (hash-set! label-map (label-name instr) i)
+            '())))
+    label-map))
+
+
+(define/contract (successors instrs i label-map)
+  (-> (listof (cons/c integer? l2instr?)) integer? hash? (listof integer?))
+  (let ([instr (get-instr instrs i)])
+    (cond
+      [(goto? instr)  (list (hash-ref label-map (goto-target instr)))]
+      [(cjump? instr) (list (hash-ref label-map (cjump-ttarget instr))
+                            (hash-ref label-map (cjump-ftarget instr)))]
+      [else           (if (< i (- (length instrs) 1))
+                          (list (+ i 1))
+                          (list))])))
 
 ;; gen
 (define/contract (gen i)
   (-> l2instr? (listof symbol?))
   (filter-non-vars
    (cond
-     [(assign? i)      (list (assign-src i)
+     [(assign? i)      (list (if (mem? (assign-src i))
+                                 (mem-addr (assign-src i))
+                                 (assign-src i))
                              (if (mem? (assign-dst i))
                                  (mem-addr (assign-dst i))
                                  (zilch)))]
