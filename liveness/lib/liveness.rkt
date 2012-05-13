@@ -96,14 +96,17 @@
       (define new-ins (set-union (list->set (gen thisinstr))
                                  (set-subtract (list-ref old-outs i)
                                                (list->set (kill thisinstr)))))
-      (define new-outs (if (< i (- numinstrs 1))
+      (define new-outs (if (or (return?    thisinstr)
+                               (tail-call? thisinstr))
+                           (set)
                            (foldl
                             set-union
                             (set)
                             (map (λ (x)
-                                   (list-ref old-ins x))
-                                 succs))
-                           (set)))
+                                   (if (< x numinstrs)
+                                       (list-ref old-ins x)
+                                       (set)))
+                                 succs))))
       (set! ins  (reverse (cons new-ins  (reverse ins))))
       (set! outs (reverse (cons new-outs (reverse outs)))))
     (let ([inouts (inout-sets ins outs)])
@@ -134,6 +137,7 @@
       [else           (if (< i (- (length instrs) 1))
                           (list (+ i 1))
                           (list))])))
+
 
 ;; gen
 (define/contract (gen i)
@@ -187,16 +191,13 @@
 
 (provide liveness)
 
-;(define myfun (fun (label 'f) (list
-;                               (assign 'x2 'eax)
-;                               (mathop '*= 'x2 'x2)
-;                               (assign '2x2 'x2)
-;                               (mathop '*= '2x2 2)
-;                               (assign '3x 'eax)
-;                               (mathop '*= '3x 3)
-;                               (assign 'eax '2x2)
-;                               (mathop '+= 'eax '3x)
-;                               (mathop '+= 'eax 4)
-;                               (return))))
+;(define instrs (list
+;                (label ':there)
+;                (label ':here)
+;                ;(label ':anywhere)
+;                (assign 'abc 11)
+;                (cjump 's0 '< 's1 ':here ':there)))
+
+;(define myfun (fun (label 'f) instrs))
 
 ;(liveness myfun)
