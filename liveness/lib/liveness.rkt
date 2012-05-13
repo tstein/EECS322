@@ -185,7 +185,7 @@
      [(or (return? i)
           (print? i)
           (allocate? i)
-          (array-error? i)) (list 'eax)]
+          (array-error? i)) (list 'eax 'ecx 'edx)]
      [else '()])))
 
 
