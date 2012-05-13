@@ -1,0 +1,13 @@
+#!/usr/bin/env racket
+#lang racket
+(require srfi/13
+         "lib/graph-color.rkt"
+         "lib/parse.rkt"
+         "lib/types.rkt")
+
+(define (main)
+  (let ([filename (command-line #:args (filename) filename)])
+    (let ([text (call-with-input-file filename read)])
+      (display (graph-color (parseFun text #t))))))
+
+(main)
