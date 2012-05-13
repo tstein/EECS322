@@ -140,7 +140,8 @@
    (cond
      [(assign? i)           (list (assign-dst i))]
      [(mathop? i)           (list (mathop-larg i))]
-     [(cmp? i)              (list (cmp-larg i))]
+     [(cmp? i)              (list (cmp-destination i)
+                                  (cmp-larg i))]
      [(call? i)             (list 'eax 'ebx 'ecx 'edx)]
      [(or (return? i)
           (print? i)
@@ -151,16 +152,16 @@
 
 (provide liveness)
 
-(define myfun (fun (label 'f) (list
-                               (assign 'x2 'eax)
-                               (mathop '*= 'x2 'x2)
-                               (assign '2x2 'x2)
-                               (mathop '*= '2x2 2)
-                               (assign '3x 'eax)
-                               (mathop '*= '3x 3)
-                               (assign 'eax '2x2)
-                               (mathop '+= 'eax '3x)
-                               (mathop '+= 'eax 4)
-                               (return))))
+;(define myfun (fun (label 'f) (list
+;                               (assign 'x2 'eax)
+;                               (mathop '*= 'x2 'x2)
+;                               (assign '2x2 'x2)
+;                               (mathop '*= '2x2 2)
+;                               (assign '3x 'eax)
+;                               (mathop '*= '3x 3)
+;                               (assign 'eax '2x2)
+;                               (mathop '+= 'eax '3x)
+;                               (mathop '+= 'eax 4)
+;                               (return))))
 
 ;(liveness myfun)
