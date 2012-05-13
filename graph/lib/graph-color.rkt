@@ -15,7 +15,7 @@
 
 
 ; coloring
-(define registers (list 'eax 'ebx 'ecx 'edx 'esi 'edi))
+(define registers (list 'eax 'ebx 'ecx 'edi 'edx 'esi))
 (define register-set (list->set registers))
 
 (define-struct/contract coloring
@@ -83,25 +83,20 @@
   (coloring (map (λ (x)
                    (cons x (hash-ref conflicts x)))
                  (sort (hash-keys conflicts) symbol<?))
-            (list (list))))
+            #f))
 
 (provide graph-color)
 
 
 ;(define instrs (list
-;                (assign 'x 1)
-;                (mathop '+= 'eax 'x)
-;                (return)))
-
-(define instrs (list
-                (assign 'rx 'eax)
-                (mathop '+= 'rx 'ebx)
-                (mathop '+= 'rx 'ecx)
-                (mathop '+= 'rx 'edx)
-                (mathop '+= 'rx 'esi)
-                (mathop '+= 'rx 'edi)
-                (mathop '+= 'rx 'eax)))
-
-(define myfun (fun (label 'f) instrs))
-
-(graph-color myfun)
+;                (assign 'rx 'eax)
+;                (mathop '+= 'rx 'ebx)
+;                (mathop '+= 'rx 'ecx)
+;                (mathop '+= 'rx 'edx)
+;                (mathop '+= 'rx 'esi)
+;                (mathop '+= 'rx 'edi)
+;                (mathop '+= 'rx 'eax)))
+;
+;(define myfun (fun (label 'f) instrs))
+;
+;(graph-color myfun)
