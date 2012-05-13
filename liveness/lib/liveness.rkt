@@ -96,8 +96,9 @@
       (define new-ins (set-union (list->set (gen thisinstr))
                                  (set-subtract (list-ref old-outs i)
                                                (list->set (kill thisinstr)))))
-      (define new-outs (if (or (return?    thisinstr)
-                               (tail-call? thisinstr))
+      (define new-outs (if (or (return?      thisinstr)
+                               (tail-call?   thisinstr)
+                               (array-error? thisinstr))
                            (set)
                            (foldl
                             set-union
