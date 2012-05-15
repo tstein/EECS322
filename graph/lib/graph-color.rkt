@@ -146,13 +146,18 @@
    symbol<?))
 
 
-(define/contract (find-kill-out-conflicts kills outs var)
-  (-> (listof (listof symbol?)) (listof set?) symbol? set?)
+(define/contract (find-kill-out-conflicts instrs outs var)
+  (-> (listof l2instr?) (listof set?) symbol? set?)
+  (define kills (map kill instrs))
   (define koconflicts (set))
-  (for/list ([k (map list->set kills)]
+  (for/list ([i instrs]
+             [k (map list->set kills)]
              [o outs])
     (if (set-member? k var)
-        (set! koconflicts (set-union koconflicts o))
+        (let ([newconflicts (if (assign? i)
+                                (set-remove o (assign-src i))
+                                o)])
+          (set! koconflicts (set-union koconflicts newconflicts)))
         null))
   (set-remove koconflicts var))
 
@@ -161,7 +166,6 @@
   (-> fun? coloring?)
   (define inouts (liveness f))
   (define allvars (set-subtract (all-vars f)
-                                register-set
                                 (set 'ebp 'esp)))
   (define conflicts (make-hash))
   ;; all registers conflict with all others
@@ -173,23 +177,25 @@
         (hash-set! conflicts v (list))
         null))
   (for/list ([v allvars])
-    (if (set-member? register-set v)
-        null
-        (let ([io-conflicts (find-inout-conflicts inouts v)]
-              [ko-conflicts (find-kill-out-conflicts (map kill (fun-instrs f))
-                                                     (inout-sets-outs inouts)
-                                                     v)])
-          (let ([all-conflicts (set->list (set-union
-                                           (list->set io-conflicts)
-                                           ko-conflicts))])
-            (hash-set! conflicts v all-conflicts)
-            (for/list ([vc all-conflicts])
-              (hash-set!
-               conflicts
-               vc
-               (sort
-                (cons v (hash-ref conflicts vc))
-                symbol<?)))))))
+    (let ([io-conflicts (find-inout-conflicts inouts v)]
+          [ko-conflicts (find-kill-out-conflicts (fun-instrs f)
+                                                 (inout-sets-outs inouts)
+                                                 v)])
+      (let ([all-conflicts (set->list
+                            (set-subtract
+                             (set-union
+                              (list->set (hash-ref conflicts v))
+                              (list->set io-conflicts)
+                              ko-conflicts)
+                             (set 'ebp 'esp)))])
+        (hash-set! conflicts v all-conflicts)
+        (for/list ([vc all-conflicts])
+          (hash-set!
+           conflicts
+           vc
+           (sort
+            (cons v (hash-ref conflicts vc))
+            symbol<?))))))
   (for/list ([v (hash-keys conflicts)])
     (hash-set! conflicts v (sort
                             (set->list
@@ -252,15 +258,14 @@
 (provide graph-color)
 
 
-;(define instrs (list
-;                (assign 'rx 'eax)
-;                (mathop '+= 'rx 'ebx)
-;                (mathop '+= 'rx 'ecx)
-;                (mathop '+= 'rx 'edx)
-;                (mathop '+= 'rx 'esi)
-;                (mathop '+= 'rx 'edi)
-;                (mathop '+= 'rx 'eax)))
-;
-;(define myfun (fun (label 'f) instrs));
-;
-;(graph-color myfun)
+(define (debug)
+  (define instrs (list (assign 'x 'eax)
+                       (assign 'y 'ecx)
+                       (cmp 'eax '<= 'x 'y)
+                       (return)))
+  (define f (fun (label ':test) instrs))
+  (pretty-display (map gen instrs))
+  (pretty-display (map kill instrs))
+  (pretty-display (liveness f))
+  (pretty-display (graph-color f)))
+

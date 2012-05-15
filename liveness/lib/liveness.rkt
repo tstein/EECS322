@@ -180,8 +180,7 @@
    (cond
      [(assign? i)           (list (assign-dst i))]
      [(mathop? i)           (list (mathop-larg i))]
-     [(cmp? i)              (list (cmp-destination i)
-                                  (cmp-larg i))]
+     [(cmp? i)              (list (cmp-destination i))]
      [(call? i)             (list 'eax 'ebx 'ecx 'edx)]
      [(or (return? i)
           (print? i)
