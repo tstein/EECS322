@@ -191,4 +191,6 @@
 
 
 (provide liveness
+         gen
+         kill
          (struct-out inout-sets))

@@ -1,25 +1,113 @@
 #lang racket
-(require "liveness.rkt"
+(require srfi/13
+         "liveness.rkt"
          "types.rkt")
 
 
-; utility
+;                                                   
+;                                                   
+;                                                   
+;                   ;    ;;;      ;                 
+;            ;             ;             ;          
+;            ;             ;             ;         ;
+;   ;   ;  ;;;;;   ;;      ;     ;;    ;;;;;  ;   ; 
+;   ;   ;    ;      ;      ;      ;      ;     ;  ; 
+;   ;   ;   ;       ;      ;      ;     ;      ;  ; 
+;   ;   ;   ;       ;      ;      ;     ;      ; ;  
+;   ;   ;   ;       ;      ;      ;     ;       ;;  
+;    ;;;;    ;;;   ;;;;  ;;;;;   ;;;;    ;;;    ;   
+;                                               ;   
+;                                            ;;;    
+;                                                   
 (define/contract (symbol<? one other)
   (-> symbol? symbol? boolean?)
   (string<? (symbol->string one)
             (symbol->string other)))
+
 
 (define/contract (filter-out-sym lst sym)
   (-> (listof symbol?) symbol? (listof symbol?))
   (filter (λ (x) (not (eq? x sym))) lst))
 
 
-; coloring
+
+;                                                   
+;                                                   
+;                                                   
+;   ;        ;                                      
+;   ;      ;; ;;                                    
+;   ;          ;                  ;     ;  ;        
+;   ;          ;          ;;;;   ; ;;  ; ;; ; ;;;;; 
+;   ;         ;          ;   ;  ;   ;  ; ;  ; ;   ; 
+;   ;        ;           ;      ;   ;; ; ;  ; ;   ;;
+;   ;       ;            ;      ;   ;  ; ;  ; ;   ; 
+;   ;       ;            ;   ;  ;   ;  ; ;  ; ;   ; 
+;   ;;;;;  ;;;;;          ;;;;   ;;;   ; ;  ; ;;;;  
+;                                             ;     
+;                                             ;     
+;                                                   
+(define/contract (all-vars x)
+  (-> (or/c fun? l2instr?) set?)
+  (list->set
+   (filter
+    (λ (s)
+      (and (symbol? s)
+           (not (string-prefix? ":" (symbol->string s)))))
+    (set->list
+     (cond
+       [(fun? x) (foldl set-union (set) (map all-vars (fun-instrs x)))]
+       [(assign? x)      (set (if (mem? (assign-dst x))
+                                  (mem-addr (assign-dst x))
+                                  (assign-dst x))
+                              (if (mem? (assign-src x))
+                                  (mem-addr (assign-src x))
+                                  (assign-src x)))]
+       [(mathop? x)      (set (mathop-larg x)
+                              (mathop-rarg x))]
+       [(cmp? x)         (set (cmp-destination x)
+                              (cmp-larg x)
+                              (cmp-rarg x))]
+       [(goto? x)        (set (goto-target x))]
+       [(cjump? x)       (set (cjump-larg x)
+                              (cjump-rarg x)
+                              (cjump-ttarget x)
+                              (cjump-ftarget x))]
+       [(call? x)        (set (call-func x))]
+       [(tail-call? x)   (set (tail-call-func x))]
+       [(print? x)       (set 'eax
+                              (print-val x))]
+       [(allocate? x)    (set 'eax
+                              (allocate-size x)
+                              (allocate-init x))]
+       [(array-error? x) (set 'eax
+                              (array-error-ptr   x)
+                              (array-error-index x))]
+       [(or (label? x)
+            (return? x)) (set)])))))
+
+
+
+;                                                          
+;                                                          
+;                                                          
+;                 ;;;                    ;                 
+;                   ;                                      
+;            ;      ;      ;    ;  ;             ;     ;  ;
+;    ;;;;   ; ;;    ;     ; ;;   ;; ;   ;;    ;;; ;  ;; ;; 
+;   ;   ;  ;   ;    ;    ;   ;   ;       ;    ;   ;  ;   ; 
+;   ;      ;   ;;   ;    ;   ;;  ;       ;    ;   ;  ;  ;  
+;   ;      ;   ;    ;    ;   ;   ;       ;    ;   ;   ;;   
+;   ;   ;  ;   ;    ;    ;   ;   ;       ;    ;   ;  ;     
+;    ;;;;   ;;;   ;;;;;   ;;;    ;      ;;;;  ;   ;   ;;;; 
+;                               ;                    ;   ; 
+;                                                    ;; ;; 
+;                                                      ;   
 (define registers (list 'eax 'ebx 'ecx 'edi 'edx 'esi))
 (define register-set (list->set registers))
 (define/contract (register? var)
   (-> symbol? boolean?)
   (set-member? register-set var))
+
 
 (define-struct/contract coloring
   ([adjacency (listof (listof symbol?))]
@@ -27,13 +115,15 @@
                     false?)])
   #:property prop:custom-write
   (λ (v p w?)
-    (fprintf p
-             "~a\n~a"
-             (coloring-adjacency v)
-             (coloring-colors v))))
+    (pretty-display
+     (coloring-adjacency v)
+     p)
+    (pretty-display
+     (coloring-colors v)
+     p)))
 
 
-(define/contract (find-conflicts inouts var)
+(define/contract (find-inout-conflicts inouts var)
   (-> inout-sets? symbol? (listof symbol?))
   (sort
    (filter-out-sym
@@ -56,48 +146,65 @@
    symbol<?))
 
 
+(define/contract (find-kill-out-conflicts kills outs var)
+  (-> (listof (listof symbol?)) (listof set?) symbol? set?)
+  (define koconflicts (set))
+  (for/list ([k (map list->set kills)]
+             [o outs])
+    (if (set-member? k var)
+        (set! koconflicts (set-union koconflicts o))
+        null))
+  (set-remove koconflicts var))
+
+
 (define/contract (graph-color f)
   (-> fun? coloring?)
   (define inouts (liveness f))
-  ;; FIXME: this list will be incomplete
-  (define allvars (foldl
-                   set-union
-                   (set)
-                   (append
-                    (inout-sets-ins  inouts)
-                    (inout-sets-outs inouts))))
+  (define allvars (set-subtract (all-vars f)
+                                register-set
+                                (set 'ebp 'esp)))
   (define conflicts (make-hash))
   ;; all registers conflict with all others
   (for/list ([r registers])
     (hash-set! conflicts r (filter-out-sym registers r)))
   ;; set up conflicts for other vars
   (for/list ([v allvars])
+    (if (not (hash-has-key? conflicts v))
+        (hash-set! conflicts v (list))
+        null))
+  (for/list ([v allvars])
     (if (set-member? register-set v)
         null
-        (let ([var-conflicts (find-conflicts inouts v)])
-          (hash-set! conflicts v var-conflicts)
-          (for/list ([vc var-conflicts])
-            (if (set-member? register-set vc)
-                (hash-set!
-                 conflicts
-                 vc
-                 (sort
-                  (cons v (hash-ref conflicts vc))
-                  symbol<?))
-                null)))))
+        (let ([io-conflicts (find-inout-conflicts inouts v)]
+              [ko-conflicts (find-kill-out-conflicts (map kill (fun-instrs f))
+                                                     (inout-sets-outs inouts)
+                                                     v)])
+          (let ([all-conflicts (set->list (set-union
+                                           (list->set io-conflicts)
+                                           ko-conflicts))])
+            (hash-set! conflicts v all-conflicts)
+            (for/list ([vc all-conflicts])
+              (hash-set!
+               conflicts
+               vc
+               (sort
+                (cons v (hash-ref conflicts vc))
+                symbol<?)))))))
+  (for/list ([v (hash-keys conflicts)])
+    (hash-set! conflicts v (sort
+                            (set->list
+                             (list->set
+                              (hash-ref conflicts v)))
+                            symbol<?)))
   (define pre-mapping-conflicts (hash-copy conflicts))
   ;; actually do the mapping
   (define mappings (make-hash))
-  ;(display (most-conflicted-vars conflicts))
-  ;(display "\n")
   (for/list ([cv (most-conflicted-vars conflicts)])
     ;; start with all regs
     (define candidates register-set)
-    ;(display (format "allregs: ~a\n" candidates))
     ;; remove those with direct conflicts
-    ;(display (format "directs: ~a\n" (list->set (hash-ref conflicts cv))))
-    (set! candidates (set-subtract candidates (list->set (hash-ref conflicts cv))))
-    ;(display (format "minus directs: ~a\n" candidates))
+    (set! candidates
+          (set-subtract candidates (list->set (hash-ref conflicts cv))))
     (for/list ([ov (hash-ref conflicts cv)])
       ;; if a non-register that's been mapped is a conflict, remove the register
       ;; it's mapped to
@@ -105,17 +212,13 @@
           null
           (if (hash-has-key? mappings ov)
               (set! candidates (set-remove candidates (hash-ref mappings ov)))
-              null))
-      ;(display (format "minus already mappeds ~a\n" candidates))
-      )
+              null)))
     (if (set-empty? candidates)
         (hash-set! mappings cv null)
         (let ([mappedto (car (set->list candidates))])
           (hash-set! mappings cv mappedto)
           (hash-set! conflicts cv (sort (cons mappedto (hash-ref conflicts cv))
-                                        symbol<?))))
-    ;(display (format "mappings: ~a\n" mappings))
-    )
+                                        symbol<?)))))
   (define colors
     (if (not (null?
               (filter
@@ -131,6 +234,7 @@
                    (cons x (hash-ref pre-mapping-conflicts x)))
                  (sort (hash-keys pre-mapping-conflicts) symbol<?))
             colors))
+
 
 (define/contract (most-conflicted-vars conflicts)
   (-> hash? (listof symbol?))
@@ -157,6 +261,6 @@
 ;                (mathop '+= 'rx 'edi)
 ;                (mathop '+= 'rx 'eax)))
 ;
-;(define myfun (fun (label 'f) instrs))
+;(define myfun (fun (label 'f) instrs));
 ;
 ;(graph-color myfun)
