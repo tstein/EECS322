@@ -165,7 +165,8 @@
 (define/contract (graph-color f)
   (-> fun? coloring?)
   (define inouts (liveness f))
-  (define allvars (set-subtract (all-vars f)
+  (define allvars (set-subtract (set-union register-set
+                                           (all-vars f))
                                 (set 'ebp 'esp)))
   (define conflicts (make-hash))
   ;; all registers conflict with all others
