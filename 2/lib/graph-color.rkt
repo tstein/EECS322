@@ -174,6 +174,27 @@
   (set-remove koconflicts var))
 
 
+;; There are a few stupid special cases.
+(define/contract (find-special-case-conflicts instrs var)
+  (-> (listof l2instr?) symbol? set?)
+  (define scconflicts (set))
+  (for/list ([i instrs])
+    (cond
+      [(cmp? i) (if (eq? (cmp-destination i) var)
+                    (set! scconflicts (set-union scconflicts
+                                                 (set 'edi 'esi)))
+                    null)]
+      [(and (mathop? i)
+            (or (eq? (mathop-op i) '<<=)
+                (eq? (mathop-op i) '>>=))) (if (eq? (mathop-rarg i) var)
+                                               (set! scconflicts
+                                                     (set-union scconflicts
+                                                                (set 'eax 'ebx 'edx 'edi 'esi)))
+                                               null)]
+      [else null]))
+  scconflicts)
+
+
 (define/contract (add-regs-to-inout-sets inouts)
   (-> inout-sets? inout-sets?)
   (define ins  (inout-sets-ins  inouts))
@@ -217,14 +238,15 @@
                                           (set-member? (list->set (gen (car (fun-instrs f))))
                                                        v))
                                      (set 'eax 'ebx 'edx 'esi 'edi)
-                                     (set))])
-          ;(map pretty-display (list v io-conflicts ko-conflicts firstin-conflicts "\n"))
+                                     (set))]
+              [sc-conflicts (find-special-case-conflicts instrs v)])
           (let ([all-conflicts (set->list
                                 (set-subtract
                                  (set-union
                                   (list->set (hash-ref conflicts v))
                                   (list->set io-conflicts)
-                                  ko-conflicts)
+                                  ko-conflicts
+                                  sc-conflicts)
                                  ;firstin-conflicts)
                                  (set 'ebp 'esp)))])
             (hash-set! conflicts v all-conflicts)
@@ -241,43 +263,43 @@
                                  (list->set
                                   (hash-ref conflicts v)))
                                 symbol<?)))))
-    (set! pre-mapping-conflicts (hash-copy conflicts))
-    ;; actually do the mapping
-    (for/list ([cv (most-conflicted-vars conflicts)])
-      ;; start with all regs
-      (define candidates register-set)
-      ;; remove those with direct conflicts
-      (set! candidates
-            (set-subtract candidates (list->set (hash-ref conflicts cv))))
-      (for/list ([ov (hash-ref conflicts cv)])
-        ;; if a non-register that's been mapped is a conflict, remove the register
-        ;; it's mapped to
-        (if (set-member? register-set ov)
-            null
-            (if (hash-has-key? mappings ov)
-                (set! candidates (set-remove candidates (hash-ref mappings ov)))
-                null)))
-      (if (set-empty? candidates)
-          (hash-set! mappings cv null)
-          (let ([mappedto (car (set->list candidates))])
-            (hash-set! mappings cv mappedto)
-            (hash-set! conflicts cv (sort (cons mappedto (hash-ref conflicts cv))
-                                          symbol<?)))))
-    (define colors
-      (if (not (null?
-                (filter
-                 null?
-                 (hash-values mappings))))
-          #f
-          (let ([vars (reverse (sort (hash-keys mappings) symbol<?))])
-            (foldl (λ (v lst)
-                     (cons (list v (hash-ref mappings v)) lst))
-                   '()
-                   vars))))
-    (coloring (map (λ (x)
-                     (cons x (hash-ref pre-mapping-conflicts x)))
-                   (sort (hash-keys pre-mapping-conflicts) symbol<?))
-              colors))
+  (set! pre-mapping-conflicts (hash-copy conflicts))
+  ;; actually do the mapping
+  (for/list ([cv (most-conflicted-vars conflicts)])
+    ;; start with all regs
+    (define candidates register-set)
+    ;; remove those with direct conflicts
+    (set! candidates
+          (set-subtract candidates (list->set (hash-ref conflicts cv))))
+    (for/list ([ov (hash-ref conflicts cv)])
+      ;; if a non-register that's been mapped is a conflict, remove the register
+      ;; it's mapped to
+      (if (set-member? register-set ov)
+          null
+          (if (hash-has-key? mappings ov)
+              (set! candidates (set-remove candidates (hash-ref mappings ov)))
+              null)))
+    (if (set-empty? candidates)
+        (hash-set! mappings cv null)
+        (let ([mappedto (car (set->list candidates))])
+          (hash-set! mappings cv mappedto)
+          (hash-set! conflicts cv (sort (cons mappedto (hash-ref conflicts cv))
+                                        symbol<?)))))
+  (define colors
+    (if (not (null?
+              (filter
+               null?
+               (hash-values mappings))))
+        #f
+        (let ([vars (reverse (sort (hash-keys mappings) symbol<?))])
+          (foldl (λ (v lst)
+                   (cons (list v (hash-ref mappings v)) lst))
+                 '()
+                 vars))))
+  (coloring (map (λ (x)
+                   (cons x (hash-ref pre-mapping-conflicts x)))
+                 (sort (hash-keys pre-mapping-conflicts) symbol<?))
+            colors))
 
 
 (define/contract (most-conflicted-vars conflicts)
