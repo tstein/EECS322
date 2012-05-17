@@ -14,13 +14,22 @@
   cmap)
 
 
+(define/contract (make-conflict-map clrng)
+  (-> coloring? hash?)
+  (define cnflct-map (make-hash))
+  (for/list ([c (coloring-adjacency clrng)])
+    (hash-set! cnflct-map (car c) (cdr c)))
+  cnflct-map)
+
+
 (define/contract (compile-fun f)
   (-> fun? fun?)
   (define clrng (graph-color f))
   (if (false? (coloring-colors clrng))
       (let ([name   (fun-name   f)]
             [instrs (fun-instrs f)]
-            [to-spill (car (most-conflicted-vars (coloring-adjacency clrng)))])
+            [to-spill (car (most-conflicted-vars
+                            (make-conflict-map clrng)))])
         (compile-fun (fun name
                           (spill instrs to-spill -4 `_splt))))
       (let ([cmap (make-coloring-map clrng)])
