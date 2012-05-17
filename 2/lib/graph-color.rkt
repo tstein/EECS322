@@ -293,17 +293,6 @@
                                       (> (cdr one) (cdr other)))))))
 
 
-(provide graph-color)
-
-
-(define (debug)
-  (define instrs (list (assign 'x 'eax)
-                       (assign 'y 'ecx)
-                       (cmp 'eax '<= 'x 'y)
-                       (return)))
-  (define f (fun (label ':test) instrs))
-  (pretty-display (map gen instrs))
-  (pretty-display (map kill instrs))
-  (pretty-display (liveness f))
-  (pretty-display (graph-color f)))
-
+(provide graph-color
+         most-conflicted-vars
+         (struct-out coloring))
