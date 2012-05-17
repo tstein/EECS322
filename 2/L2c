@@ -1,0 +1,14 @@
+#!/usr/bin/env racket
+#lang racket
+
+(require racket/cmdline
+         "lib/compile.rkt"
+         "lib/parse.rkt"
+         "lib/types.rkt")
+
+(define (main)
+  (let
+      ([filename (command-line #:args (filename) filename)])
+    (display (compile (parse filename)))))
+
+(main)
