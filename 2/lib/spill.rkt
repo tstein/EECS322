@@ -2,12 +2,18 @@
 (require "types.rkt")
 
 (define dirty #f)
-(define spilled 0)
+(define spilled -4)
 (define spillct 0)
 (define sprefix "deadbeef")
 (define spillmap (make-hash))
 
-(define (get-spill) spilled)
+(define/contract (get-spill)
+  (-> integer?)
+  spilled)
+
+(define/contract (set-spill newval)
+  (-> integer? void?)
+  (set! spilled newval))
 
 (define/contract (make-tvar prefix)
   (-> symbol? string?)
@@ -55,9 +61,18 @@
     (set! dirty #f)
     (set! spilled offset)
     (set! sprefix prefix)
-    (filter (λ (x) (not (zilch? x))) (flatten (map
-                                               (λ (x) (spill-instr x var))
-                                               code)))))
+    (let ([spilled (filter (λ (x)
+                             (not (zilch? x)))
+                           (flatten (map
+                                     (λ (x) (spill-instr x var))
+                                     code)))])
+      (let ([guts (if (and (mathop? (car spilled))
+                           (eq? 'esp (mathop-larg (car spilled))))
+                      (cdr (reverse (cdr (reverse spilled))))
+                      spilled)])
+        (cons (mathop '+= 'esp (get-spill))
+              (reverse (cons (mathop '-= 'esp (get-spill))
+                             (reverse guts))))))))
 
 (define/contract (spill-instr i v)
   (-> l2instr? symbol? (listof l2instr?))
@@ -291,4 +306,7 @@
                      index)))
           (list i)))))
 
-(provide spill)
+(provide spill
+         get-spill
+         set-spill)
+

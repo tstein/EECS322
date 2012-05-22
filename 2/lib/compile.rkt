@@ -31,7 +31,10 @@
             [to-spill (car (most-conflicted-vars
                             (make-conflict-map clrng)))])
         (compile-fun (fun name
-                          (spill instrs to-spill -4 `_splt))))
+                          (let ([spillval (get-spill)])
+                            (begin0
+                              (spill instrs to-spill spillval `_splt)
+                              (set-spill (- spillval 4)))))))
       (let ([cmap (make-coloring-map clrng)])
         (color-fun f cmap))))
 
