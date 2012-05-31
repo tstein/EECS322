@@ -101,11 +101,13 @@
         [(and (mem? dst) (eq? (mem-addr dst) v))
          (list
           (make-tvar-kill/stack tvar offset)
-          (assign (mem tvar (mem-offset dst)) (if (eq? src v)
-                                                  (begin
-                                                    (dirtify!)
-                                                    tvar)
-                                                  src)))]
+          (assign
+           (mem tvar (mem-offset dst))
+           (if (eq? src v)
+               (begin
+                 (dirtify!)
+                 tvar)
+               src)))]
         [(and (mem? src) (eq? (mem-addr src) v))
          (begin
            (dirtify!)
@@ -120,10 +122,11 @@
                 (zilch))))]
         [(eq? dst v) (if (mem? src)
                          (list
-                          (make-tvar-kill/mem tvar
-                                              (if (eq? (mem-addr src) v)
-                                                  (mem tvar (mem-offset src))
-                                                  src))
+                          (make-tvar-kill/mem
+                           tvar
+                           (if (eq? (mem-addr src) v)
+                               (mem tvar (mem-offset src))
+                               src))
                           (make-tvar-gen tvar offset))
                          (list
                           (assign (mem `ebp offset) src)))]

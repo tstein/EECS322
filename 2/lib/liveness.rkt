@@ -66,7 +66,7 @@
            (symbol->string o)))))
 
 
-(define/contract (filter-non-vars l)
+(define/contract (filter-vars l)
   (-> list? (listof symbol?))
   (filter (λ (x)
             (and (symbol? x)
@@ -143,7 +143,7 @@
 ;; gen
 (define/contract (gen i)
   (-> l2instr? (listof symbol?))
-  (filter-non-vars
+  (filter-vars
    (cond
      [(assign? i)      (list (if (mem? (assign-src i))
                                  (mem-addr (assign-src i))
@@ -176,7 +176,7 @@
 ;; kill
 (define/contract (kill i)
   (-> l2instr? (listof symbol?))
-  (filter-non-vars
+  (filter-vars
    (cond
      [(assign? i)           (list (assign-dst i))]
      [(mathop? i)           (list (mathop-larg i))]
